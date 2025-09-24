@@ -1,103 +1,177 @@
+
+
 import Image from "next/image";
+import { pool } from "@/utils/db";
+import type { RowDataPacket } from "mysql2";
+import { cookies } from "next/headers";
 
-export default function Home() {
+
+
+type Property = {
+  property_id: number;
+  title: string;
+  address: string;
+  rating: number;
+  description?: string;
+  image_url?: string | null;
+  latitude?: number;
+  longitude?: number;
+};
+
+type Amenity = {
+  ref_id: number;
+  ref_name: string;
+  ref_icon: string;
+  ref_icon_na: string;
+  ref_parent: number;
+  available: boolean;
+  parent_name: string; // we'll join the parent name
+};
+
+export default async function PropertyPage() {
+    const cookieStore = await cookies();
+   const subdomain = cookieStore.get("subdomain")?.value || "www";
+
+  // Fetch property info
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT * FROM properties WHERE domain = ?`,
+    [subdomain]
+  );
+  const property = rows[0] as Property;
+
+  // Fetch property images
+  const [photos] = await pool.execute<RowDataPacket[]>(
+    `SELECT * FROM property_images WHERE property_id = ? ORDER BY is_primary DESC`,
+    [property.property_id]
+  );
+  const bannerImage = photos[0]?.image_url || "/dummy.jpeg";
+
+  // Fetch amenities and join with parent category
+const [amenityRows] = await pool.execute<RowDataPacket[]>(
+  `SELECT rm.ref_id, rm.ref_name, rm.ref_icon, rm.ref_icon_na, rm.ref_parent
+   FROM property_amenities pa
+   JOIN ref_data rm ON pa.ref_id = rm.ref_id
+   WHERE pa.property_id = ?
+     AND rm.ref_type = 1
+   ORDER BY rm.ref_parent, rm.ref_id`,
+  [property.property_id]
+);
+
+  const amenities = (Array.isArray(amenityRows) ? amenityRows : []) as Amenity[];
+
+  // Group amenities by parent category name
+  
+const [attractions] = await pool.execute<RowDataPacket[]>(
+    `SELECT * FROM attractions`
+    
+  );
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+    <div>
+      {/* Hero Banner */}
+      <div className="relative w-full h-[400px]">
         <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
+          src={bannerImage.startsWith("/") ? bannerImage : `/${bannerImage}`}
+          alt={property?.title || "Property image"}
+          fill
+          sizes="100vw"
+          className="object-cover"
         />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+        <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+          <h1 className="text-3xl md:text-5xl font-bold text-white text-center">
+            {property?.title}
+          </h1>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Column (Property Description) */}
+        <div className="lg:col-span-8 space-y-6">
+          <div>
+            <h3 className="text-xl  mb-4">About this place</h3>
+            <p className="text-gray-700 leading-relaxed">
+              {property?.description || "No description available."}
+            </p>
+Where you’ll be
+Bangalore Urban, Karnataka, India
+<div className="relative w-full h-[300px] bg-gray-100 rounded-md mt-1 mb-1">
+map
+
+</div>
+
+<div className="grid gap-4">
+  {attractions.map((attraction, index) => (
+    <div
+      key={attraction.attraction_id}
+      className="grid grid-cols-1 sm:grid-cols-2 items-center gap-4 p-2 rounded-md"
+    >
+      {/* Image Column */}
+      <div
+        className={`p-8 relative w-full aspect-square ${
+          index % 2 !== 0 ? "sm:order-last" : ""
+        }`}
+      >
+        <Image
+          src="/finch.jpeg"
+          alt={attraction.attraction_name || "Attraction image"}
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+          className="object-cover rounded-md"
+        />
+      </div>
+
+      {/* Content Column */}
+      <div className="flex flex-col justify-center p-8">
+        <h4 className="font-semibold text-lg">{attraction.attraction_name}</h4>
+        <p className="text-gray-600 text-sm">{attraction.attraction_desc}</p>
+      </div>
+    </div>
+  ))}
+</div>
+
+
+
+
+
+
+          </div>
+        </div>
+
+        {/* Right Column (Details + Amenities) */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Property Details */}
+          <div className="border rounded-lg p-4 shadow-sm bg-white">
+            <h4 className="text-lg font-semibold mb-2">Details</h4>
+            <p className="text-gray-600">{property?.address}</p>
+            <p className="text-yellow-500 font-medium mt-2">
+              ⭐ {property?.rating || "N/A"}
+            </p>
+          </div>
+
+          {/* Amenities */}
+          <div className="border rounded-lg p-4 shadow-sm bg-white">
+            <h4 className="text-lg font-semibold mb-4">Amenities</h4>
+
+                  {amenities.map((amenity) => (
+                    <div
+                      key={amenity.ref_id}
+                      className="flex items-center space-x-2 text-gray-700"
+                    >
+                      <i
+                        className={`${amenity.ref_icon} text-xl`}
+                      ></i>
+                      <span
+                        className={amenity.available ? "" : "line-through opacity-50"}
+                      >
+                        {amenity.ref_name}
+                      </span>
+                    </div>
+                  ))}
+
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
